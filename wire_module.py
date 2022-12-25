@@ -1,31 +1,40 @@
 import random
+import pygame
 
 class WireModule:
-    def __init__(self, module_id: int):
+    def __init__(self, module_id: int, wire_slots = 5):
         self.module_id = module_id
-        self.wire_slots = 5 # This can be made variable in the future, but this will complicate rule making for a first prototype
+        self.wire_slots = wire_slots # [NOTE] for now it is excepted that this value is equal to 5 (rule making is not a generalized process)
+
+        self.random_wire_types()
+        self.rulebase()
+        self.user_cuts = [False]*len(self.wire_types)
+
+        self.screen_width = 1200
+        self.screen_height = 600
+        self.screen_color = 'grey'
+
+        self.wire_length = 400
+        self.wire_width = 20
+        self.wires_start_horizontal = 100
+        self.wires_start_vertical = 100
+        self.wires_gap = 100
+        self.wire_cut_length = 20
+
+        self.rules_start_horiztonal = 650
+        self.rules_start_vertical = 60
+        self.rules_gap = 50
         
-    def generate_wire_types(self):
+        self.wire_horizontals = [self.wires_start_horizontal + self.wires_gap*index for (index,_) in enumerate(self.wire_types)]
+
+        self.module_status = None
+
+
+    def random_wire_types(self):
         self.wire_types = ['empty']*self.wire_slots
         for index in range(self.wire_slots):
             self.wire_types[index] = random.choice(['blue', 'red', 'green'])
-
-
-    def print_module_start(self, spacing, length):
-        print("\n"*spacing)
-        print("-"*length + "Wire-Module" + "-"*length)
     
-
-    def print_module_end(self, spacing, length):
-        print("-"*length + "Wire-Module" + "-"*length)
-        print("\n"*spacing)
-
-
-    def print_module_details(self):
-        print("You are viewing Wire Module #" + str(self.module_id))
-        print("This Wire Module contains " + str(self.wire_slots) + " wire slots")
-        print("Wires: " + str(self.wire_types))
-        
 
     def rulebase(self):
         """ Method used to hold and apply the rules to generate what are the correct cuts to make """
@@ -47,54 +56,88 @@ class WireModule:
             self.correct_cuts[4] = 1    # If one green wire, cut the fifth wire
 
 
-    def print_rules(self):
-        """ Method used to print in English the rules established for Wire Modules in the rulebase() method """
-        print("-----Wire-Module-Instructions-----")
-        
-        print("*Don't cut unless specified*")
+    def draw_cuts(self):
+        for (user_cut, wire_horizontal) in zip(self.user_cuts, self.wire_horizontals):
+            if user_cut == True:
+                pygame.draw.rect(self.screen, self.screen_color, pygame.Rect(wire_horizontal, self.wires_start_vertical + self.wire_length/2 - self.wire_cut_length/2, self.wire_width, self.wire_cut_length))
+    
 
-        print("---BLUE WIRES---")
-        print("~If one blue wire, cut the fourth wire~")
-        print("~If two blue wires, cut the second wire~")
-        
-        print("---RED WIRES---")
-        print("~If four red wires or more, cut the first wire~")
-
-        print("---GREEN WIRES---")
-        print("~If three green wires, cut the third wire~")
-        print("~If one green wire, cut the fifth wire~")
-
-
-    def userinput_console(self):
-        prompt = "Input your answers as a binary number (ex: 01010) [1: cut, 0: no cut]\n"
-        self.user_cuts = list(map(int, list(input(prompt)))) # input: string -> list of character numbers -> list of integers
-        module_outcome = self.user_cuts == self.correct_cuts
-
-        print("Inputted Cuts: " + str(self.user_cuts)) 
-        print("Correct Cuts: " + str(self.correct_cuts))
-        print("Matched: " + str(module_outcome))
-
-        if module_outcome == True:
-            print("Sucessfully disarmed Wire Module #" + str(self.module_id))
+    def draw_led_indictator(self):
+        if self.module_status == True:
+            pygame.draw.circle(self.screen, 'green', (560,40), 25)
+        elif self.module_status == False:
+            pygame.draw.circle(self.screen, 'red', (560,40), 25)            
         else:
-            print("Failed to disarmed Wire Module #" + str(self.module_id))
+            pygame.draw.circle(self.screen, 'grey50', (560,40), 25)
+
+
+    def draw_module(self):
+        module_surface = pygame.Surface((self.screen_width, self.screen_height))
+        module_surface.fill(self.screen_color) 
+        self.screen.blit(module_surface, (0,0))
         
-        return module_outcome
+        font = pygame.font.Font(None, 35)
+        rules = ["-----Wire-Module-Instructions-----", "*Don't cut unless specified*", "---BLUE WIRES---", "~If one blue wire, cut the fourth wire~",
+                        "~If two blue wires, cut the second wire~", "---RED WIRES---", "~If four red wires or more, cut the first wire~",
+                        "---GREEN WIRES---", "~If three green wires, cut the third wire~", "~If one green wire, cut the fifth wire~"]
+        for (index, rule) in enumerate(rules):
+            surface = font.render(rule, True, 'black')
+            self.screen.blit(surface, (self.rules_start_horiztonal, self.rules_start_vertical + self.rules_gap*index))
+    
+        pygame.draw.rect(self.screen, 'grey50', pygame.Rect(80, self.wires_start_vertical-25, 450, 50)) # Top port rectangle
+        pygame.draw.rect(self.screen, 'grey50', pygame.Rect(80, self.wires_start_vertical+375, 450, 50)) # Bottom port rectangle
+
+        # Draws the wires and the ports they connect to on the wire module
+        for (wire, wire_horizontal) in zip(self.wire_types, self.wire_horizontals):
+            pygame.draw.rect(self.screen, wire, pygame.Rect(wire_horizontal, self.wires_start_vertical, self.wire_width, self.wire_length)) # Wires
+            pygame.draw.circle(self.screen, 'black', (wire_horizontal + self.wire_width/2, self.wires_start_vertical), 15) # Top ports
+            pygame.draw.circle(self.screen, 'black', (wire_horizontal + self.wire_width/2, self.wires_start_vertical + self.wire_length), 15) # Bottom ports
+
+
+    def userinput(self):
+        (mouse_x,_) = pygame.mouse.get_pos()
+        mouse_1_pressed = pygame.mouse.get_pressed()[0]
+        for (index,_) in enumerate(self.user_cuts):
+            # [NOTE] Intentionally does not check the y position since it is not critical
+            if mouse_x <= self.wire_horizontals[index] + self.wire_width and mouse_x >= self.wire_horizontals[index] and mouse_1_pressed == True:
+                self.user_cuts[index] = True
+            if self.user_cuts[index] != self.correct_cuts[index] and self.user_cuts[index] == True:
+                self.module_status = False
+        if self.user_cuts == self.correct_cuts:
+            self.module_status = True
 
 
     def play(self):
-        self.print_module_start(1,25)
-        self.generate_wire_types()
-        self.print_module_details()
-        self.rulebase()
-        self.print_rules()
-        module_outcome = self.userinput_console()
-        self.print_module_end(1,25)
+        pygame.init()
+        self.clock = pygame.time.Clock()
+        self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
+        pygame.display.set_caption(f'Wire Module {self.module_id}')
+        
+        quit = False
+        while quit == False:
+            if self.module_status == None: # This prevents from doing more cuts after sucess or failure to disarm wire module
+                self.userinput()
+            self.draw_module()
+            self.draw_cuts()
+            self.draw_led_indictator()
+        
+            pygame.display.update()
+            self.clock.tick(15)
 
-        return module_outcome
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    quit = True
+
+        return self.module_status
+
+
+def main():
+    wire_module_1 = WireModule(1) 
+    print(wire_module_1.correct_cuts) # For debugging purposes
+    wire_module_1_status = wire_module_1.play() # [TODO] To be used in the bomb module to keep track of strikes
+    print(wire_module_1_status)
 
 
 if __name__ == '__main__':
-     wire_module_1 = WireModule(1)
-     wire_module_1_outcome = wire_module_1.play()
-     print(wire_module_1_outcome)
+    main()
