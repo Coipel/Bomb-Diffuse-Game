@@ -1,8 +1,10 @@
 import random
 import pygame
+import time
 
 class WireModule:
     def __init__(self, module_id: int, wire_slots = 5):
+        self.time_start = time.time()
         self.module_id = module_id
         self.wire_slots = wire_slots # [NOTE] for now it is excepted that this value is equal to 5 (rule making is not a generalized process)
 
@@ -22,19 +24,20 @@ class WireModule:
         self.wire_cut_length = 20
 
         self.rules_start_horiztonal = 650
-        self.rules_start_vertical = 60
-        self.rules_gap = 50
+        self.rules_start_vertical = 150
+        self.rules_gap = 40
         
         self.wire_horizontals = [self.wires_start_horizontal + self.wires_gap*index for (index,_) in enumerate(self.wire_types)]
 
         self.module_status = None
+        self.time_left = True
+        self.time_remaining_sec = 'Infinte'
 
 
     def random_wire_types(self):
         self.wire_types = ['empty']*self.wire_slots
-        for index in range(self.wire_slots):
-            self.wire_types[index] = random.choice(['blue', 'red', 'green'])
-    
+        self.wire_types = [random.choice(['blue', 'red', 'green']) for _ in range(self.wire_slots)]
+
 
     def rulebase(self):
         """ Method used to hold and apply the rules to generate what are the correct cuts to make """
@@ -54,21 +57,6 @@ class WireModule:
             self.correct_cuts[2] = 1    # If three green wires, cut the third wire
         if greens == 1:
             self.correct_cuts[4] = 1    # If one green wire, cut the fifth wire
-
-
-    def draw_cuts(self):
-        for (user_cut, wire_horizontal) in zip(self.user_cuts, self.wire_horizontals):
-            if user_cut == True:
-                pygame.draw.rect(self.screen, self.screen_color, pygame.Rect(wire_horizontal, self.wires_start_vertical + self.wire_length/2 - self.wire_cut_length/2, self.wire_width, self.wire_cut_length))
-    
-
-    def draw_led_indictator(self):
-        if self.module_status == True:
-            pygame.draw.circle(self.screen, 'green', (560,40), 25)
-        elif self.module_status == False:
-            pygame.draw.circle(self.screen, 'red', (560,40), 25)            
-        else:
-            pygame.draw.circle(self.screen, 'grey50', (560,40), 25)
 
 
     def draw_module(self):
@@ -94,6 +82,31 @@ class WireModule:
             pygame.draw.circle(self.screen, 'black', (wire_horizontal + self.wire_width/2, self.wires_start_vertical + self.wire_length), 15) # Bottom ports
 
 
+    def draw_cuts(self):
+            for (user_cut, wire_horizontal) in zip(self.user_cuts, self.wire_horizontals):
+                if user_cut == True:
+                    pygame.draw.rect(self.screen, self.screen_color, pygame.Rect(wire_horizontal, self.wires_start_vertical + self.wire_length/2 - self.wire_cut_length/2, self.wire_width, self.wire_cut_length))
+    
+
+    def draw_led_indictator(self):
+        if self.module_status == True:
+            pygame.draw.circle(self.screen, 'green', (560,40), 25)
+        elif self.module_status == False:
+            pygame.draw.circle(self.screen, 'red', (560,40), 25)            
+        else:
+            pygame.draw.circle(self.screen, 'grey50', (560,40), 25)
+
+
+    def draw_timer(self):
+        font = pygame.font.Font(None, 60)
+        if self.time_remaining_sec != 'Infinte':
+            surface = font.render(f"Time Remaining: {str(round(self.time_remaining_sec, 1))}", True, 'black')
+        else:
+            surface = font.render("Time Remaining: Infinite", True, 'black')
+
+        self.screen.blit(surface, (self.rules_start_horiztonal + 20, self.rules_start_vertical - 75))
+
+
     def userinput(self):
         (mouse_x,_) = pygame.mouse.get_pos()
         mouse_1_pressed = pygame.mouse.get_pressed()[0]
@@ -107,19 +120,29 @@ class WireModule:
             self.module_status = True
 
 
-    def play(self):
+    def play(self, time_limit_sec=None):
         pygame.init()
         self.clock = pygame.time.Clock()
         self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
         pygame.display.set_caption(f'Wire Module {self.module_id}')
         
+        # [TODO] Should have this GUI loop occur within the bomb module so there is only one blocking event in the code which allows for only one bomb timer needed
+        # ^ This will result the wire module only generating the surfaces/shapes, but the bomb module is what actually will do the displaying
         quit = False
-        while quit == False:
+        while quit == False: 
+            if time_limit_sec != None:
+                self.time_remaining_sec = time_limit_sec - (time.time() - self.time_start)
+                if self.time_remaining_sec < 0:
+                    self.time_left = False
+                    pygame.quit()
+                    return 
+
             if self.module_status == None: # This prevents from doing more cuts after sucess or failure to disarm wire module
                 self.userinput()
             self.draw_module()
             self.draw_cuts()
             self.draw_led_indictator()
+            self.draw_timer()
         
             pygame.display.update()
             self.clock.tick(15)
@@ -128,16 +151,4 @@ class WireModule:
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     quit = True
-
-        return self.module_status
-
-
-def main():
-    wire_module_1 = WireModule(1) 
-    print(wire_module_1.correct_cuts) # For debugging purposes
-    wire_module_1_status = wire_module_1.play() # [TODO] To be used in the bomb module to keep track of strikes
-    print(wire_module_1_status)
-
-
-if __name__ == '__main__':
-    main()
+        return

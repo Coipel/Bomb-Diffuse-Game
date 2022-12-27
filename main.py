@@ -1,9 +1,8 @@
-#import wire_module as wm
-import bomb_module as bm
+from bomb_module import Bomb
 
 def main():
-    bomb = bm.Bomb(1)
-    bomb.setup_modules()
+    bomb = Bomb(60)
+    bomb.setup_modules(5)
     bomb.play()
 
 if __name__ == '__main__':
